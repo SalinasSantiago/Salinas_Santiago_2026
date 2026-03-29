@@ -31,6 +31,8 @@
 #include <stdint.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "led.h"
+#include "switch.h"	
 // HC SR04 sensor ultrasonico para medir distancia donde va de 0 a 9.5  cada 5s
 //v= PI * R * R * h  
 // activar cuando v= 500cm3 y desactivar cuando v= 2500 cm3
@@ -72,14 +74,27 @@ TaskHandle_t uart_task_handle = NULL;
 ///realizar cada 5 segundos. 0.0v 0g entonces 50g son 0.165v, 500g son 1.65v
 uint16_t valor_analogico = 0.0;
 #define DEFADC_BALANZA_CH CH0
+
+//** Variables para almacenar los valores a enviar por UART*/
+float volumen_agua_uart = 0.0;
+float peso_alimento_uart = 0.0;
+
+//** Variable para controlar el sistema */
+bool tecla1 = false; 
+
 /*==================[internal functions declaration]=========================*/
 /** @brief Handler para el temporizador general 
  * Este temporizador se activa cada 5 se00000	gundos y notifica a las tareas de medir distancia y controlar el alimento para que realicen sus respectivas acciones.
  */
 */
+
+
+	
+
 void TimerGeneralHandler(void *param){
 	vTaskNotifyGiveFromISR(medir_distancia_task_handle, NULL);
 	vTaskNotifyGiveFromISR(controlar_alimento_task_handle, NULL);
+	vTaskNotifyGiveFromISR(uart_task_handle, NULL);
 }
 
 
@@ -96,20 +111,22 @@ void ControlAlimentoTask(void* pvParameters){
 	float peso;
 	while(1){
 		ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-		 AnalogInputReadSingle(ADC_BALANZA_CH, &valor_analogico)  
+		 AnalogInputReadSingle(ADC_BALANZA_CH, &valor_analogico)
+		if(tecla1){  
 		peso = (valor_analogico * 1000.0) / 3300.0; // Convertir el valor analógico a peso en gramos
+		peso_alimento_uart = peso;
 		if (peso < 50.0){
 			GPIOOn(GPIO_ALIMENTO_PIN);
 		} else if (peso > 500.0){
 			GPIOOff(GPIO_ALIMENTO_PIN);
 		}
-	}
+	}}
 }
 
 /** @brief Handler para la tarea de controlar el agua 		
  * 
  */
-void ControlAguaTask(void* pvParameters){
+void ControlAguaTask(void* pvParameters ){
 
 	float distancia;
 	float nivel_agua;
@@ -119,10 +136,14 @@ void ControlAguaTask(void* pvParameters){
 	while(1){
 		
 		ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
+		if(tecla1){
+			 
+		
 		distancia = HcSr04ReadDistanceInCentimeters();
 		nivel_agua = 30.0 - distancia;
 		volumen_agua = area * nivel_agua;
-		
+		volumen_agua_uart = volumen_agua;
 
 		if (volumen_agua < 500.0){
 			GPIOOn(GPIO_ELECTRO_VALVULA_PIN);
@@ -130,8 +151,27 @@ void ControlAguaTask(void* pvParameters){
 			GPIOOff(GPIO_ELECTRO_VALVULA_PIN);
 		}
 	}
+	}
 
 
+}
+
+
+
+void ReporteUartTask(void* pvParameters){
+    char mensaje[100];
+    
+    while(1){
+        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        
+        if (sistema_activo) {
+            LedOn(LED_1); // Indica que está encendido
+            sprintf(mensaje, "Agua: %.0f cm3, Alimento: %.0f gr\r\n", volumen_agua_uart, peso_alimento_uart);
+            UartSendString(UART_PC, mensaje);
+        } else {
+            LedOff(LED_1);
+        }
+    }
 }
 
 /*==================[external functions definition]==========================*/
@@ -141,7 +181,8 @@ void app_main(void){
 	 HcSr04Init(GPIO_ECHO_PIN, GPIO_TRIGGER_PIN);  
 	 GPIOInit(GPIO_ALIMENTO_PIN, GPIO_OUTPUT);
 	 GPIOInit(GPIO_BALANZA_PIN, GPIO_INPUT);  
-
+	LedsInit();	
+	SwitchsInit();
 	 
 
 	 analog_input_config_t adc_config = {
