@@ -58,24 +58,46 @@
 #define UART_RX_PIN GPIO_17	
 
 /*==================[internal data definition]===============================*/
-TaskHandle_t medir_distancia_task_handle;
+
+/** @brief Handler para activar la tarea de medir distancia */
+TaskHandle_t medir_distancia_task_handle = NULL;
+/** @brief Handle para activar la tarea de controlar el alimento */
+TaskHandle_t controlar_alimento_task_handle = NULL; 
+/** @brief Handler para activar la tarea de nviar mensajes por uart */
+TaskHandle_t uart_task_handle = NULL;	
+
 
 ///La balanza analógica nos devolverá una señal de 0,0V cuando no tenga carga y 3,3V
 ///cuando alcance su máximo de capacidad (1.000g). Las mediciones de peso se deben
 ///realizar cada 5 segundos. 0.0v 0g entonces 50g son 0.165v, 500g son 1.65v
-
-
+uint16_t valor_analogico = 0.0;
+#define DEFADC_BALANZA_CH CH0
 /*==================[internal functions declaration]=========================*/
-void TimerHandler( void* param){
-	vTaskNotifyGiveFromISR(medir_distancia_task_handle, pdFALSE);    // 
+/** @brief Handler para el temporizador general 
+ * Este temporizador se activa cada 5 se00000	gundos y notifica a las tareas de medir distancia y controlar el alimento para que realicen sus respectivas acciones.
+ */
+*/
+void TimerGeneralHandler(void *param){
+	vTaskNotifyGiveFromISR(medir_distancia_task_handle, NULL);
+	vTaskNotifyGiveFromISR(controlar_alimento_task_handle, NULL);
 }
+
+
+/**
+ * @brief Handler de interrupción de la tecla 1 (TEC1)
+ */
+void Tecla1Handler(){
+    tecla1 = !tecla1;   // Activa o detiene la medición
+}
+
 
 
 void ControlAlimentoTask(void* pvParameters){
 	float peso;
 	while(1){
 		ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-		peso = AnalogRead(GPIO_BALANZA_PIN) * 1000.0 / 3.3; 
+		 AnalogInputReadSingle(ADC_BALANZA_CH, &valor_analogico)  
+		peso = (valor_analogico * 1000.0) / 3300.0; // Convertir el valor analógico a peso en gramos
 		if (peso < 50.0){
 			GPIOOn(GPIO_ALIMENTO_PIN);
 		} else if (peso > 500.0){
@@ -84,7 +106,9 @@ void ControlAlimentoTask(void* pvParameters){
 	}
 }
 
-
+/** @brief Handler para la tarea de controlar el agua 		
+ * 
+ */
 void ControlAguaTask(void* pvParameters){
 
 	float distancia;
@@ -105,44 +129,51 @@ void ControlAguaTask(void* pvParameters){
 		} else if (volumen_agua > 2500.0){
 			GPIOOff(GPIO_ELECTRO_VALVULA_PIN);
 		}
-		}
 	}
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+}
 
 /*==================[external functions definition]==========================*/
 void app_main(void){
-	 /// gpios 
+	 
 	 GPIOInit(GPIO_ELECTRO_VALVULA_PIN, GPIO_OUTPUT);
 	 HcSr04Init(GPIO_ECHO_PIN, GPIO_TRIGGER_PIN);  
 	 GPIOInit(GPIO_ALIMENTO_PIN, GPIO_OUTPUT);
-	 GPIOInit(GPIO_BALANZA_PIN, GPIO_INPUT);
+	 GPIOInit(GPIO_BALANZA_PIN, GPIO_INPUT);  
+
+	 
+
+	 analog_input_config_t adc_config = {
+        .input = ADC_BALANZA_CH, 
+        .mode = ADC_SINGLE, 
+        .func_p = NULL,         
+        .param_p = NULL,
+        .sample_fnc = 0
+    };  
+    AnalogInputInit(&adc_config); 
+
+
+	// Para la uart
+    serial_config_t my_uart = {
+        .port = UART_PC,
+        .baud_rate = 115200, /*!< baudrate (bits per second) */
+        .func_p = NULL,      /*!< Pointer to callback function to call when receiving data (= UART_NO_INT if not requiered)*/
+        .param_p = NULL      /*!< Pointer to callback function parameters */
+    };
+    UartInit(&my_uart);
+
 	 /// timer
 	timer_config_t timer_config = {
 		.timer = TIMER_A,
 		.period = TIMER_PERIOD_US,
-		.func_p = TimeraHandler,
+		.func_p = TimerAguaHandler,
 		.param_p = NULL
 	};
 	TimerInit(&timer_config);
 	TimerStart(timer_config.timer);
 	/// tareas
 	xTaskCreate(ControlAguaTask, "Control Agua", 2048, NULL, 5, &medir_distancia_task_handle);
-	xTaskCreate(ControlAlimentoTask, "Control Alimento", 2048, NULL, 5, NULL);
+	xTaskCreate(ControlAlimentoTask, "Control Alimento", 2048, NULL, 5, &controlar_alimento_task_handle);
 }
 /*==================[end of file]============================================*/
