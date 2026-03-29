@@ -4,7 +4,7 @@
  *
  * This section describes how the program works.
  *
- * @section hardConn Hardware Connection
+ * @section hardConn Hardware Connection 
  *
  * |    Peripheral  |   ESP32   	|
  * |:--------------:|:--------------|
@@ -12,6 +12,9 @@
  * | 	TRIG	 	| 	GPIO_2		|
  * | 	VCC	   	    | 	 5V			|
  * | 	GND	   	    | 	GND			|
+ * 
+ * 
+ * 
  *
  * @section changelog Changelog
  *
@@ -43,29 +46,44 @@
 // por lo que se puede usar un solo timer para esto
 #include "timer_mcu.h"
 
+#include "analog_io_mcu.h"
 /*==================[macros and definitions]=================================*/
 #define TIMER_PERIOD_US 5000000
 #define GPIO_TRIGGER_PIN GPIO_2
 #define GPIO_ECHO_PIN GPIO_3
 #define GPIO_ELECTRO_VALVULA_PIN GPIO_4   
-
+#define GPIO_BALANZA_PIN GPIO_5	
+#define GPIO_ALIMENTO_PIN GPIO_6
+#define UART_TX_PIN GPIO_16
+#define UART_RX_PIN GPIO_17	
 
 /*==================[internal data definition]===============================*/
 TaskHandle_t medir_distancia_task_handle;
 
-
+///La balanza analógica nos devolverá una señal de 0,0V cuando no tenga carga y 3,3V
+///cuando alcance su máximo de capacidad (1.000g). Las mediciones de peso se deben
+///realizar cada 5 segundos. 0.0v 0g entonces 50g son 0.165v, 500g son 1.65v
 
 
 /*==================[internal functions declaration]=========================*/
-void TimerDistanciaHandler( void* param){
+void TimerHandler( void* param){
 	vTaskNotifyGiveFromISR(medir_distancia_task_handle, pdFALSE);    // 
 }
 
 
-void medirDistanciaTask(void* pvParameters){
-
-	
+void ControlAlimentoTask(void* pvParameters){
+	float peso;
+	while(1){
+		ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+		peso = AnalogRead(GPIO_BALANZA_PIN) * 1000.0 / 3.3; 
+		if (peso < 50.0){
+			GPIOOn(GPIO_ALIMENTO_PIN);
+		} else if (peso > 500.0){
+			GPIOOff(GPIO_ALIMENTO_PIN);
+		}
+	}
 }
+
 
 void ControlAguaTask(void* pvParameters){
 
@@ -89,21 +107,42 @@ void ControlAguaTask(void* pvParameters){
 		}
 		}
 	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 /*==================[external functions definition]==========================*/
 void app_main(void){
 	 /// gpios 
 	 GPIOInit(GPIO_ELECTRO_VALVULA_PIN, GPIO_OUTPUT);
-	 HcSr04Init(GPIO_ECHO_PIN, GPIO_TRIGGER_PIN);
+	 HcSr04Init(GPIO_ECHO_PIN, GPIO_TRIGGER_PIN);  
+	 GPIOInit(GPIO_ALIMENTO_PIN, GPIO_OUTPUT);
+	 GPIOInit(GPIO_BALANZA_PIN, GPIO_INPUT);
 	 /// timer
 	timer_config_t timer_config = {
 		.timer = TIMER_A,
 		.period = TIMER_PERIOD_US,
-		.func_p = TimerDistanciaHandler,
+		.func_p = TimeraHandler,
 		.param_p = NULL
 	};
 	TimerInit(&timer_config);
 	TimerStart(timer_config.timer);
 	/// tareas
 	xTaskCreate(ControlAguaTask, "Control Agua", 2048, NULL, 5, &medir_distancia_task_handle);
+	xTaskCreate(ControlAlimentoTask, "Control Alimento", 2048, NULL, 5, NULL);
 }
 /*==================[end of file]============================================*/
