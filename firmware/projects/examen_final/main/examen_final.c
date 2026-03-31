@@ -13,8 +13,12 @@
  *
  * |    Peripheral  |   ESP32   	|
  * |:--------------:|:--------------|
- * | 	PIN_X	 	| 	GPIO_X		|
- *
+ * | 	GPIO_BOMBA_AGUA_PIN	 	| 	GPIO_8		|
+ *	| 	GPIO_HUMEDAD_PIN	 	| 	GPIO_9		|
+	| 	GPIO_SENSOR_PH_PIN	 	| 	GPIO_0		|
+	| 	GPIO_BOMBA_ALCALINA_PIN	 	| 	GPIO_5		|
+	| 	GPIO_BOMBA_ACIDA_PIN	 	| 	GPIO_6		|
+	
  *
  * @section changelog Changelog
  *
