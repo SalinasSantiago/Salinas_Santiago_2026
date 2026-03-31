@@ -41,23 +41,32 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 /*==================[macros and definitions]=================================*/
+
+/** @brief Período de la tarea de reporte por UART (en milisegundos) */
 #define TAREA_PERIODO_UART_MS           5000
+/** @brief Período de la tarea de control de humedad y pH (en milisegundos) */
 #define TAREA_PERIODO_CONTROL_MS         3000
 
-
+/** @brief GPIO para la bomba de agua */
 #define GPIO_BOMBA_AGUA_PIN             GPIO_8
+/** @brief GPIO para el sensor de humedad */
 #define GPIO_HUMEDAD_PIN                GPIO_9
 
+/** @brief GPIO para el sensor de pH */
 #define GPIO_SENSOR_PH_PIN              GPIO_0
+/** @brief GPIO para la bomba alcalina */
 #define GPIO_BOMBA_ALCALINA_PIN         GPIO_5
+/** @brief GPIO para la bomba acida */
 #define GPIO_BOMBA_ACIDA_PIN            GPIO_6
 
+/** @brief Humbrales de activacion de bomba seng el PH */
 #define PH_ALCALINO_MIN                  6.0
 #define PH_ACIDO_MAX                     6.4 
 
+/** @brief  Configuracion analogica del sensor de pH el canal , el valor maximo de ph y voltaje de refrencia/ */ 
 #define ADC_PH_SENSOR_CH 			     CH0 
 #define PH_MAX 						   14.0	
-#define VOLTAGE_REF_MV                  3300.0
+#define VOLTAGE_REF_MV                  3000.0
 
 
 
@@ -99,7 +108,7 @@ void ControlHumedadTask(void *pvParameter) {
 }
 
 /** @brief Tarea de control de pH
- * @details Lee el valor del sensor de pH y controla las bombas en consecuencia luego espera .
+ * @details Lee el valor del sensor de pH y controla las bombas en consecuencia luego espera. 
  */
 static void ControlPH(void *pvParameter) {
 	SwitchesRead(); 
@@ -108,7 +117,6 @@ static void ControlPH(void *pvParameter) {
     while (true) {
         if (sistema_activo) {
             AnalogInputReadSingle(ADC_PH_SENSOR_CH, &valor_mv);
-            // 0 mV = 0 , 3300 mV = 14 ph 
             ph = (valor_mv * PH_MAX) / VOLTAGE_REF_MV;
 			ph_actual_uart = ph;
             if (ph < PH_ALCALINO_MIN) {
@@ -141,11 +149,20 @@ static void ReporteUartTask(void *pvParameter) {
     }
 }
 
+
+/**
+ * @brief Handler para interrupcion de tecla de encendido 
+ * @details  activa el sistema
+ */
 void TeclasEncendidoHandler(void *pvParameter) {
     
 	sistema_activo = true;
 }
 
+/**
+ * @brief Handler para interrupcion de tecla de apagado
+ * @details desactiva el sistema
+ */
 void TeclasApagadoHandler(void *pvParameter) {
     sistema_activo = false;
 }
@@ -153,14 +170,30 @@ void TeclasApagadoHandler(void *pvParameter) {
 /*==================[external functions definition]==========================*/
 
 /** @brief Función principal
- * @details Inicializa los periféricos y crea las tareas.
+ * @details Inicializa los periféricos para activar bombas y leer sensor de humedad y PH 
+ * y crea las tareas para controlar el sistema y reportar por UART.
+ * 
  */
 void app_main(void){
+
+	/*	
+	Inicializacion de GPIO para sensor de humedad logico y sus bomba correspondiete 
+	*/
 	GPIOInit(GPIO_HUMEDAD_PIN, GPIO_INPUT);
 	GPIOInit(GPIO_BOMBA_AGUA_PIN, GPIO_OUTPUT);
+
+	/* Inicializacion de bombas para control de PH 
+	*/
+	
+	GPIOInit(GPIO_BOMBA_ALCALINA_PIN, GPIO_OUTPUT);
+	GPIOInit(GPIO_BOMBA_ACIDA_PIN, GPIO_OUTPUT);
+
+	/* Inicializacion de botones de encendido y apagado 
+	*/
 	SwitchesInit();
 
-
+	/* Inicializacion del sensor de PH con struct de configuracion analogica
+	*/
 	analog_input_config_t adc_config = {
         .input    = ADC_PH_SENSOR_CH,
         .mode     = ADC_SINGLE,
@@ -171,7 +204,8 @@ void app_main(void){
     AnalogInputInit(&adc_config);
 
 
-
+	/* Inicializacion del puerto UART para reporte de estado
+	*/
 	serial_config_t uart_config = {
         .port      = UART_PC,
         .baud_rate = 115200,
@@ -180,10 +214,14 @@ void app_main(void){
     };
     UartInit(&uart_config);
 
-    
+    /*
+	Inicializacion de interrupciones para botone de encendido y apagado
+	*/
     SwitchActivInt(SWITCH_1, TeclasEncendidoHandler, NULL);
     SwitchActivInt(SWITCH_2, TeclasApagadoHandler, NULL);
 
+	/* Creacion de tareas de freertos para control de humedad, control de PH y reporte por UART
+	*/
 	xTaskCreate(ControlHumedadTask, "ControlHumedadTask", 2048, NULL, 1, NULL);
 	xTaskCreate(ControlPH, "ControlPHTask", 2048, NULL, 1, NULL);
 	xTaskCreate(ReporteUartTask, "ReporteUartTask", 2048, NULL, 1, NULL);
