@@ -42,33 +42,92 @@
 #include "freertos/task.h"
 /*==================[macros and definitions]=================================*/
 #define TAREA_PERIODO_UART_MS           5000
+#define TAREA_PERIODO_CONTROL_MS         3000
+
+
 #define GPIO_BOMBA_AGUA_PIN             GPIO_8
 #define GPIO_HUMEDAD_PIN                GPIO_9
-#define TAREA_PERIODO_CONTROL_MS         3000
+
+#define GPIO_SENSOR_PH_PIN              GPIO_0
+#define GPIO_BOMBA_ALCALINA_PIN         GPIO_5
+#define GPIO_BOMBA_ACIDA_PIN            GPIO_6
+
+#define PH_ALCALINO_MIN                  6.0
+#define PH_ACIDO_MAX                     6.4 
+
+#define ADC_PH_SENSOR_CH 			     CH0 
+#define PH_MAX 						   14.0	
+#define VOLTAGE_REF_MV                  3300.0
 /*==================[internal data definition]===============================*/
+bool sistema_activo = false;
+float ph_actual_uart = 0.0;
+char mensaje_uart[1000];
 
 
+
+/*==================[internal functions declaration]=========================*/
 /** @brief Tarea de control de humedad
  * @details Lee el estado del sensor de humedad y controla la bomba de agua en consecuencia.
  */
 
 void ControlHumedadTask(void *pvParameter) {
+	bool humedad = false;
 	while (true) {
-		bool humedad = GPIORead(GPIO_HUMEDAD_PIN); // Leer humedad del sensor
 
-		if (humedad) {
-			GPIOOn(GPIO_BOMBA_AGUA_PIN); // Encender bomba si humedad es baja
-		} else {
-			GPIOOff(GPIO_BOMBA_AGUA_PIN); // Apagar bomba si humedad es adecuada
-		}
+		if( sistema_activo ){
+			
+			humedad = GPIORead(GPIO_HUMEDAD_PIN); 
 
-		vTaskDelay(TAREA_PERIODO_CONTROL_MS / portTICK_PERIOD_MS); 
+			if (humedad) {
+				GPIOOn(GPIO_BOMBA_AGUA_PIN);
+			} else {
+				GPIOOff(GPIO_BOMBA_AGUA_PIN); 
+			}
+
+			
 	}
+		vTaskDelay(TAREA_PERIODO_CONTROL_MS / portTICK_PERIOD_MS); 
+}
+}
 
-/*==================[internal functions declaration]=========================*/
+/** @brief Tarea de control de pH
+ * @details Lee el valor del sensor de pH y controla las bombas en consecuencia.
+ */
+static void ControlPH(void *pvParameter) {
+    uint16_t valor_mv=0;
+    float ph=0.0;
+    while (true) {
+        if (sistema_activo) {
+            AnalogInputReadSingle(ADC_PH_SENSOR_CH, &valor_mv);
+            // 0 mV = 0 , 3300 mV = 14 ph 
+            ph = (valor_mv * PH_MAX) / VOLTAGE_REF_MV;
 
+            if (ph < PH_ALCALINO_MIN) {
+                GPIOOn(GPIO_BOMBA_ALCALINA_PIN);
+            } else if (ph > PH_ACIDO_MAX) {
+                GPIOOff(GPIO_BOMBA_ACIDA_PIN);
+            }
+        }
+        vTaskDelay(TAREA_PERIODO_CONTROL_MS / portTICK_PERIOD_MS);
+    }
+}
 /*==================[external functions definition]==========================*/
 void app_main(void){
-	printf("Hello world!\n");
+	GPIOInit(GPIO_HUMEDAD_PIN, GPIO_INPUT);
+	GPIOInit(GPIO_BOMBA_AGUA_PIN, GPIO_OUTPUT);
+
+
+
+	analog_input_config_t adc_config = {
+        .input    = ADC_PH_SENSOR_CH,
+        .mode     = ADC_SINGLE,
+        .func_p   = NULL,
+        .param_p  = NULL,
+        .sample_frec = 0
+    };
+    AnalogInputInit(&adc_config);
+
+	xTaskCreate(ControlHumedadTask, "ControlHumedadTask", 2048, NULL, 1, NULL);
+	xTaskCreate(ControlPH, "ControlPHTask", 2048, NULL, 1, NULL);
 }
 /*==================[end of file]============================================*/
