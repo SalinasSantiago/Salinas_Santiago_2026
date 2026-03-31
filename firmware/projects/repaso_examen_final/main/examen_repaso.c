@@ -22,7 +22,7 @@
  * |:----------:|:-------------------|
  * | 26/03/2026 | Document creation  |
  *
- * @author Santiago Salinas (santiago.salinas@ingeneieria.uner.edu)
+ * @author @author Santiago Salinas (santiago.salinas@ingeneieria.uner.edu)
  */
 
 /*==================[inclusions]=============================================*/
@@ -142,6 +142,9 @@ static void ReporteUartTask(void *pvParameter) {
 }
 
 /*==================[external functions definition]==========================*/
+/** @brief Función principal
+ * @details Inicializa los periféricos y crea las tareas.
+ */
 void app_main(void) {
     LedsInit();
     SwitchesInit();
