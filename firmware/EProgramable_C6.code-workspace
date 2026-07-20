@@ -17,6 +17,18 @@
         },
         {
             "path": "./projects/x_template"
+        },
+        {
+            "path": "projects/examen_final"
+        },
+        {
+            "path": "projects/examen_final_Marzo"
+        },
+        {
+            "path": "projects/repaso_examen_final"
+        },
+        {
+            "path": "projects/repaso_examen_julio"
         }
     ],
     "settings": {
