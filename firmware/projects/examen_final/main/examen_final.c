@@ -16,10 +16,10 @@
  * |   UART_TX	   	| 	UART_RX		|
  * |   UART_RX	   	| 	UART_TX		|
  * |   PIN Electrovalvula	GPIO_19 |
- * |  PIN  Balanza	| 	GPIO_20	|
+ * |   PIN  Balanza	| 	GPIO_20		|
  * |   Tecla 1	   	| 	GPIO_4		|
  * |   LED 1	   	| 	GPIO_18		|
- * |  PIN Alimento	| 	GPIO_6		|
+ * |   PIN Alimento	| 	GPIO_6		|
  * 
  * 
  *
@@ -164,20 +164,19 @@ void ControlAguaTask(void* pvParameters ){
 
 
 /** @brief Tarea encargada de los valores de volumen y peso por UART cada 5 segundos
- * 
+ *  el sistema debe informar, cada 5 segundos, a través de la UART el estado de ambos recipientes.
+	 Para esto se deben transmitir por el puerto serie a la PC mensajes con el formato:
+	Agua: xxx cm3, Alimento: xxx gr
  */
 void ReporteUartTask(void* pvParameters){
     char mensaje[100];
-    """ el sistema debe informar, cada 5 segundos, a través de la UART el estado de ambos recipientes.
-	 Para esto se deben transmitir por el puerto serie a la PC mensajes con el formato:
-	Agua: xxx cm3, Alimento: xxx gr
-	"""
+    
     while(1){
         
         
-        if (sistema_activo) {
+        if (tecla1) {
             LedOn(LED_1); // Indica que está encendido
-            sprintf(mensaje, "Agua: %.0f cm3, Alimento: %.0f gr\r\n", volumen, peso);
+            sprintf(mensaje, "Agua: %.0f cm3, Alimento: %.0f gr\r\n", volumen_agua, peso);
             UartSendString(UART_PC, mensaje);
         } else {
             LedOff(LED_1);
@@ -189,15 +188,39 @@ void ReporteUartTask(void* pvParameters){
 /*==================[external functions definition]==========================*/
 void app_main(void){
 	 
+	/**
+	 * @brief Construct a new GPIOInit object
+	 * 
+	 */
 	 GPIOInit(GPIO_ELECTRO_VALVULA_PIN, GPIO_OUTPUT);
+	 /**
+	  * @brief Construct a new Hc Sr 0 4 Init object
+	  * 
+	  */
 	 HcSr04Init(GPIO_ECHO_PIN, GPIO_TRIGGER_PIN);  
+	 /**
+	  * @brief Construct a new GPIOInit object
+	  * 
+	  */
 	 GPIOInit(GPIO_ALIMENTO_PIN, GPIO_OUTPUT);
+	 /**
+	  * @brief Construct a new GPIOInit object
+	  * 
+	  */
 	 GPIOInit(GPIO_BALANZA_PIN, GPIO_INPUT);  
+	/**
+	 * @brief Construct a new Leds Init object
+	 * 
+	 */
 	LedsInit();	
+
 	SwitchsInit();
 	 
 
-
+	/**
+	 * @brief Configuracion de entrada analogica
+	 * 
+	 */
 	 analog_input_config_t adc_config = {
         .input = CH0, 
         .mode = ADC_SINGLE, 
@@ -208,12 +231,16 @@ void app_main(void){
     AnalogInputInit(&adc_config); 
 
 
-	// Configuracion UART 
+	
+	/**
+	 * @brief Configuracion de comunicacion uart 
+	 * 
+	 */
     serial_config_t my_uart = {
         .port = UART_PC,
-        .baud_rate = 115200, /*!< baudrate (bits per second) */
-        .func_p = NULL,      /*!< Pointer to callback function to call when receiving data (= UART_NO_INT if not requiered)*/
-        .param_p = NULL      /*!< Pointer to callback function parameters */
+        .baud_rate = 115200, 
+        .func_p = NULL,      
+        .param_p = NULL      
     };
     UartInit(&my_uart);
 
@@ -235,10 +262,11 @@ void app_main(void){
 	 */
 	xTaskCreate(ReporteUartTask, "Reporte UART", 2048, NULL, 5, NULL);
 
-	/** @brief Definicion de ISR para la tecla 1 y activar led
+	
+	/**
+	 * @brief Configuracion de interrupcion de la tecla 1
 	 * 
 	 */
-	
 
 
 }
