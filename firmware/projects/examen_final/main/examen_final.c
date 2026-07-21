@@ -15,8 +15,11 @@
  * 
  * |   UART_TX	   	| 	UART_RX		|
  * |   UART_RX	   	| 	UART_TX		|
- * |   Electrovalvula	| 	GPIO_4  |
- * |   Balanza	   	| 	GPIO_5		|
+ * |   PIN Electrovalvula	GPIO_19 |
+ * |  PIN  Balanza	| 	GPIO_20	|
+ * |   Tecla 1	   	| 	GPIO_4		|
+ * |   LED 1	   	| 	GPIO_18		|
+ * |  PIN Alimento	| 	GPIO_6		|
  * 
  * 
  *
@@ -32,7 +35,8 @@
  ambas tareas se activan cada 5 segundos por delayTask.
   La tarea de controlar el agua mide la distancia del sensor ultrasonico y calcula el volumen de agua en cm3,
    si el volumen es menor a 500 cm3 activa la electroválvula y si es mayor activa la electroválvula.
-    La tarea de controlar el alimento lee el valor de la balanza analógica y calcula el peso en gramos, si el peso es menor a 50g activa una señal en alto por gpio y si es mayor a 500g activa la señal en bajo por gpio. Ambas tareas envían los valores de volumen de agua y peso de alimento por UART cada 5 segundos.
+    La tarea de controlar el alimento lee el valor de la balanza analógica y calcula el peso en gramos, si el peso es menor a 50g
+	 activa una señal en alto por gpio y si es mayor a 500g activa la señal en bajo por gpio. Ambas tareas envían los valores de volumen de agua y peso de alimento por UART cada 5 segundos.
 
 /*==================[inclusions]=============================================*/
 #include <stdio.h>
@@ -51,12 +55,14 @@
 #define DELAY_TASK_MS 5000 //delay de 5 segundos para las tareas de control de agua y alimento
 #define GPIO_TRIGGER_PIN GPIO_2
 #define GPIO_ECHO_PIN GPIO_3
-#define GPIO_ELECTRO_VALVULA_PIN GPIO_4   
-#define GPIO_BALANZA_PIN GPIO_5	
+#define GPIO_ELECTRO_VALVULA_PIN GPIO_19  
+#define GPIO_BALANZA_PIN GPIO_20
 #define GPIO_ALIMENTO_PIN GPIO_6
 #define UART_TX_PIN GPIO_16
 #define UART_RX_PIN GPIO_17	
+
 #define LED_1 GPIO_18
+#define SWITCH_1 GPIO_4
 /*==================[internal data definition]===============================*/
 
 
@@ -87,6 +93,12 @@ void Tecla1Handler(){
 	detener el sistema, y el LED_1 para indicar cuando el mismo está encendido.
 	"""
     tecla1 = !tecla1;   // Activa o detiene la medición
+	if(tecla1){
+		LedOn(LED_1);
+	}
+	else{
+		LedOff(LED_1);
+	}
 }
 
 
@@ -96,9 +108,11 @@ void ControlAlimentoTask(void* pvParameters){
 	while(1){
 		AnalogInputReadSingle(CH0, &valor_analogico)
 		if(tecla1){  
+
 			"""La balanza analógica nos devolverá una señal de 0,0V
 			 cuando no tenga carga y 3,3V cuando alcance su máximo de capacidad (1.000g).
 			  Las mediciones de peso se deben realizar cada 5 segundos."""
+
 		peso = (valor_analogico * 1000.0) / 3300.0; 
 		if (peso < 50.0){
 			GPIOOn(GPIO_ALIMENTO_PIN);
@@ -126,7 +140,7 @@ a 30 cm de distancia de la base del mismo. Las mediciones de nivel de agua se de
 	float distancia;
 	float nivel_agua;
 	const float radio = 10.0; // r
-	const float area = 3.1415 * radio * radio; // A = π * r^2	
+	const float area = 3.1415 * radio * radio; // 	
 	
 
 	while(1){
@@ -217,5 +231,18 @@ void app_main(void){
 	 * 
 	 */
 	xTaskCreate(ControlAlimentoTask, "Control Alimento", 2048, NULL, 5, NULL);
+
+	/**
+	 * @brief Definicion de tarea de reporte por UART
+	 * 
+	 */
+	xTaskCreate(ReporteUartTask, "Reporte UART", 2048, NULL, 5, NULL);
+
+	/** @brief Definicion de ISR para la tecla 1 y activar led
+	 * 
+	 */
+	SwitchSetIsrHandler(SWITCH_1, Tecla1Handler);
+
+
 }
 /*==================[end of file]============================================*/
