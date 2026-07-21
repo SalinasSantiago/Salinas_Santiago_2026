@@ -29,39 +29,36 @@
  * |:----------:|:-----------------------------------------------|
  * | 21/7/2026 | Document creation		                         |
  *
- * @author Santiago Salinas Sosa 
+ * @author Santiago Salinas Sosa santiago.salinas@ingenieria.edu.ar
  *
- */ Voy a tener dos Tareas una para controlar el agua y otra para controlar el alimento, 
- ambas tareas se activan cada 5 segundos por delayTask.
-  La tarea de controlar el agua mide la distancia del sensor ultrasonico y calcula el volumen de agua en cm3,
-   si el volumen es menor a 500 cm3 activa la electroválvula y si es mayor activa la electroválvula.
-    La tarea de controlar el alimento lee el valor de la balanza analógica y calcula el peso en gramos, si el peso es menor a 50g
-	 activa una señal en alto por gpio y si es mayor a 500g activa la señal en bajo por gpio. Ambas tareas envían los valores de volumen de agua y peso de alimento por UART cada 5 segundos.
-
+ */ 
 /*==================[inclusions]=============================================*/
 #include <stdio.h>
 #include <stdint.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+
 #include "led.h"
 #include "switch.h"	
+
 #include "hc_sr04.h"
 #include "uart_mcu.h"
 #include "gpio_mcu.h"
+
 #include "analog_io_mcu.h"
 
 
 /*==================[macros and definitions]=================================*/
-#define DELAY_TASK_MS 5000 //delay de 5 segundos para las tareas de control de agua y alimento
+#define DELAY_TASK_MS 5000 //delay de 5 segundos para las tareas de control de agua, alimento y uart
 #define GPIO_TRIGGER_PIN GPIO_2
 #define GPIO_ECHO_PIN GPIO_3
+
 #define GPIO_ELECTRO_VALVULA_PIN GPIO_19  
 #define GPIO_BALANZA_PIN GPIO_20
-#define GPIO_ALIMENTO_PIN GPIO_6
-#define UART_TX_PIN GPIO_16
-#define UART_RX_PIN GPIO_17	
 
-#define LED_1 GPIO_18
+#define GPIO_ALIMENTO_PIN GPIO_6
+
+#define LED_1 GPIO_11
 #define SWITCH_1 GPIO_4
 /*==================[internal data definition]===============================*/
 
@@ -85,13 +82,13 @@ bool tecla1 = false;
 
 /**
  * @brief Handler de interrupción de la tecla 1 (TEC1)
+ *  se debe utilizar la tecla 1 para iniciar y 
+	detener el sistema, y el LED_1 para indicar cuando el mismo está encendido.
  */
 
 
 void Tecla1Handler(){
-	""" se debe utilizar la tecla 1 para iniciar y 
-	detener el sistema, y el LED_1 para indicar cuando el mismo está encendido.
-	"""
+	
     tecla1 = !tecla1;   // Activa o detiene la medición
 	if(tecla1){
 		LedOn(LED_1);
@@ -102,16 +99,18 @@ void Tecla1Handler(){
 }
 
 
-
+/**
+ * @brief 
+ * La balanza analógica nos devolverá una señal de 0,0V
+	cuando no tenga carga y 3,3V cuando alcance su máximo de capacidad (1.000g).
+	Las mediciones de peso se deben realizar cada 5 segundos.
+ * @param pvParameters 
+ */
 void ControlAlimentoTask(void* pvParameters){
 	
 	while(1){
-		AnalogInputReadSingle(CH0, &valor_analogico)
+		AnalogInputReadSingle(CH0, &valor_analogico);
 		if(tecla1){  
-
-			"""La balanza analógica nos devolverá una señal de 0,0V
-			 cuando no tenga carga y 3,3V cuando alcance su máximo de capacidad (1.000g).
-			  Las mediciones de peso se deben realizar cada 5 segundos."""
 
 		peso = (valor_analogico * 1000.0) / 3300.0; 
 		if (peso < 50.0){
@@ -241,7 +240,7 @@ void app_main(void){
 	/** @brief Definicion de ISR para la tecla 1 y activar led
 	 * 
 	 */
-	SwitchSetIsrHandler(SWITCH_1, Tecla1Handler);
+	
 
 
 }
