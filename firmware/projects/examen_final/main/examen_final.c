@@ -126,16 +126,15 @@ void ControlAlimentoTask(void* pvParameters){
 
 /** @brief Tarea encargada de controlar el suministro de agua activando o
  *  desactivando la electroválvula según el nivel de agua en el recipiente	
- * 
- */
-void ControlAguaTask(void* pvParameters ){
-	""" debe controlar el suministro de agua. El recipiente de agua es de aproximadamente 3000 cm3 de capacidad
+ *  debe controlar el suministro de agua. El recipiente de agua es de aproximadamente 3000 cm3 de capacidad
 	 (20cm de diámetro y 9,5cm de altura). Para el llenado del recipiente se debe activar una electroválvula 
 	 (poniendo en alto un GPIO a elección). La electroválvula se debe accionar cuando se detecte que el nivel
 	  en recipiente cae por debajo del medio litro. La electroválvula se debe cerrar cuando en el recipiente se alcancen los 2500cm3. 
 Para medir el nivel de agua en el recipiente se utiliza un HC-SR04 ubicado por encima del recipiente, 
-a 30 cm de distancia de la base del mismo. Las mediciones de nivel de agua se deben realizar cada 5 segundos."""
-
+a 30 cm de distancia de la base del mismo. Las mediciones de nivel de agua se deben realizar cada 5 segundos.
+ */
+void ControlAguaTask(void* pvParameters ){
+	
 	float distancia;
 	float nivel_agua;
 	const float radio = 10.0; // r
@@ -149,9 +148,8 @@ a 30 cm de distancia de la base del mismo. Las mediciones de nivel de agua se de
 			 
 		
 		distancia = HcSr04ReadDistanceInCentimeters();
-		nivel_agua = 30.0 - distancia;
+		nivel_agua =  9.5 - (30.0 - distancia); 
 		volumen_agua = area * nivel_agua;
-		volumen = volumen_agua;
 
 		if (volumen_agua < 500.0){
 			GPIOOn(GPIO_ELECTRO_VALVULA_PIN);
